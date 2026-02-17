@@ -50,10 +50,10 @@ local function checkLaptopVersion(repository)
     end)
 end
 
-AddEventHandler('fd_laptop:server:useLaptop', function(source, laptopId, devices)
+AddEventHandler('fd_laptop:server:useLaptop', function(source, laptopId, devices, requiresPassword)
     if not laptopId then return end
 
-    TriggerClientEvent('fd_laptop:client:useLaptop', source, config.item, laptopId, devices)
+    TriggerClientEvent('fd_laptop:client:useLaptop', source, config.item, laptopId, devices, requiresPassword)
 end)
 
 RegisterNetEvent('fd_laptop:server:clientReady', function()

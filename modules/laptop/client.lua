@@ -70,7 +70,8 @@ end
 ---@param item string
 ---@param laptopId string
 ---@param installedDevices table<LaptopDevice>
-local function open(item, laptopId, installedDevices)
+---@param requiresPassword boolean?
+local function open(item, laptopId, installedDevices, requiresPassword)
     laptopItem = item
     currentlyOpen = laptopId
     devices = installedDevices
@@ -87,11 +88,13 @@ local function open(item, laptopId, installedDevices)
         action = 'openLaptop',
         data = {
             laptopId = laptopId,
-            devices = devices
+            devices = devices,
+            requiresPassword = requiresPassword == true
         }
     })
 
     SetNuiFocus(true, true)
+    SetNuiFocusKeepInput(false)
     SetCursorLocation(0.5, 0.5)
 end
 
@@ -106,6 +109,7 @@ local function close(dontSend)
     reset()
 
     SetNuiFocus(false, false)
+    SetNuiFocusKeepInput(false)
 
     if dontSend then return end
 
@@ -157,6 +161,54 @@ RegisterNUICallback('availableBackgrounds', function(_, cb)
     cb(availableBackgrounds)
 end)
 
+RegisterNUICallback('saveLaptopPassword', function(data, cb)
+    if not currentlyOpen then
+        cb({
+            success = false,
+            error = locale('something_went_wrong'),
+            hasPassword = false
+        })
+
+        return
+    end
+
+    local success, error, hasPassword = lib.callback.await('fd_laptop:server:saveLaptopPassword', false, currentlyOpen,
+        data.password)
+
+    cb({
+        success = success,
+        error = error,
+        hasPassword = hasPassword == true
+    })
+
+    if not success then return end
+
+    SendNUIMessage({
+        action = 'updateLaptopSecurity',
+        data = {
+            hasPassword = hasPassword == true
+        }
+    })
+end)
+
+RegisterNUICallback('unlockLaptop', function(data, cb)
+    if not currentlyOpen then
+        cb({
+            success = false,
+            error = locale('something_went_wrong')
+        })
+
+        return
+    end
+
+    local success = lib.callback.await('fd_laptop:server:validateLaptopPassword', false, currentlyOpen, data.password)
+
+    cb({
+        success = success,
+        error = success and nil or locale('laptop_password_incorrect')
+    })
+end)
+
 AddEventHandler("OnResourceStop", function(resourceName)
     if resourceName == GetCurrentResourceName() then
         ClearInterval(timeInterval)
@@ -168,10 +220,10 @@ RegisterNetEvent("fd_laptop:client:versionUpdate", function()
     needsUpdate = true
 end)
 
-RegisterNetEvent("fd_laptop:client:useLaptop", function(item, laptopId, installedDevices)
+RegisterNetEvent("fd_laptop:client:useLaptop", function(item, laptopId, installedDevices, requiresPassword)
     if not laptopId then return end
 
-    open(item, laptopId, installedDevices)
+    open(item, laptopId, installedDevices, requiresPassword)
     startItemCheck()
 end)
 

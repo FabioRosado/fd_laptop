@@ -9,6 +9,7 @@ import type {
   LaptopDevice,
   LaptopInitEvent,
   LaptopOpenEvent,
+  LaptopSecurityEvent,
   ServerTimeEvent
 } from '../types/laptop.types'
 import { useLocale } from './locale.store'
@@ -18,6 +19,8 @@ export const useLaptop = defineStore('laptop', () => {
   const locale = useLocale()
   const laptopId = ref<string>()
   const isOpen = ref<boolean>(false)
+  const isLocked = ref<boolean>(false)
+  const hasPassword = ref<boolean>(false)
 
   const clock24h = ref<boolean>(true)
   const useServerTime = ref<boolean>(false)
@@ -62,16 +65,20 @@ export const useLaptop = defineStore('laptop', () => {
     }, 2000)
   }
 
-  const open = (id: string, devices: LaptopDevice[]) => {
+  const open = (id: string, devices: LaptopDevice[], requiresPassword?: boolean) => {
     isOpen.value = true
     laptopId.value = id
     installedDevices.value = devices
+    hasPassword.value = requiresPassword === true
+    isLocked.value = requiresPassword === true
   }
 
   const close = async (sendRequest?: boolean) => {
     isOpen.value = false
     laptopId.value = undefined
     installedDevices.value = []
+    isLocked.value = false
+    hasPassword.value = false
 
     if (sendRequest) {
       await useApi('close', {}, undefined, undefined)
@@ -80,12 +87,27 @@ export const useLaptop = defineStore('laptop', () => {
 
   const t = (key: string) => locales.value[key] || key
 
+  const unlock = () => {
+    isLocked.value = false
+  }
+
+  const updateLaptopSecurity = (enabled: boolean) => {
+    hasPassword.value = enabled
+
+    if (!enabled) {
+      isLocked.value = false
+    }
+  }
+
   return {
     t,
     init,
     open,
     close,
+    unlock,
     isOpen,
+    isLocked,
+    hasPassword,
     locales,
     clock24h,
     dateFormat,
@@ -93,6 +115,7 @@ export const useLaptop = defineStore('laptop', () => {
     serverTime,
     needsUpdate,
     useServerTime,
+    updateLaptopSecurity,
     installedDevices,
     formattedServerTime
   }
@@ -118,11 +141,17 @@ useNuiEvent<ServerTimeEvent>('updateClock', (data: ServerTimeEvent) => {
 useNuiEvent<LaptopOpenEvent>('openLaptop', (data: LaptopOpenEvent) => {
   const laptop = useLaptop()
 
-  laptop.open(data.laptopId, data.devices)
+  laptop.open(data.laptopId, data.devices, data.requiresPassword)
 })
 
 useNuiEvent<LaptopCloseEvent>('closeLaptop', () => {
   const laptop = useLaptop()
 
   laptop.close()
+})
+
+useNuiEvent<LaptopSecurityEvent>('updateLaptopSecurity', (data: LaptopSecurityEvent) => {
+  const laptop = useLaptop()
+
+  laptop.updateLaptopSecurity(data.hasPassword)
 })

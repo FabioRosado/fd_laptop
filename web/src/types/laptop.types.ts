@@ -15,9 +15,14 @@ export interface ServerTimeEvent {
 export interface LaptopOpenEvent {
   laptopId: string
   devices: LaptopDevice[]
+  requiresPassword?: boolean
 }
 
 export interface LaptopCloseEvent {}
+
+export interface LaptopSecurityEvent {
+  hasPassword: boolean
+}
 
 export interface LaptopDevice {
   slot: number

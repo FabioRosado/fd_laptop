@@ -5,6 +5,7 @@ import { defineAsyncComponent, onMounted, ref, type Component } from 'vue'
 
 type AvailableTabs =
   | 'wifi'
+  | 'password'
   | 'notifications'
   | 'background'
   | 'appearance'
@@ -30,6 +31,15 @@ const tabs: Record<AvailableTabs, TabData> = {
       () =>
         /* webpackChunkName: "SettingsAppWifiTab" */
         import('../apps/settings/WifiTab.vue')
+    )
+  },
+  password: {
+    icon: 'pi pi-lock',
+    label: locale.t('settings_password_tab_label'),
+    component: defineAsyncComponent(
+      () =>
+        /* webpackChunkName: "SettingsAppPasswordTab" */
+        import('../apps/settings/PasswordTab.vue')
     )
   },
   notifications: {
@@ -111,6 +121,7 @@ onMounted(() => {
           'hover:bg-emphasis hover:text-color': currentTab !== key
         }"
         v-for="(tab, key) in tabs"
+        :key="key"
         @click.stop="switchTab(key)"
       >
         <i :class="tab.icon"></i>

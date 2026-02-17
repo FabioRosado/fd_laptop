@@ -4,9 +4,49 @@ if not itemConfig.item then return end
 
 local utils = require 'utils.server'
 local ox_inventory = exports.ox_inventory
+local MIN_PASSWORD_LENGTH = 4
 
 ---@type table<string, true>
 local registeredStashes = {}
+
+---@param password any
+---@return string | nil
+local function normalizePassword(password)
+    if type(password) ~= 'string' then
+        return nil
+    end
+
+    local normalized = password:match('^%s*(.-)%s*$')
+
+    if normalized == '' then
+        return nil
+    end
+
+    return normalized
+end
+
+---@param src number
+---@param laptopId string
+---@return number | nil, table | nil
+local function getLaptopSlotById(src, laptopId)
+    if not laptopId then return nil, nil end
+
+    local slots = ox_inventory:Search(src, 'slots', itemConfig.item, {
+        id = laptopId
+    })
+
+    if type(slots) ~= 'table' then
+        return nil, nil
+    end
+
+    for _, slotData in pairs(slots) do
+        if slotData.metadata?.id == laptopId then
+            return slotData.slot, slotData.metadata
+        end
+    end
+
+    return nil, nil
+end
 
 ox_inventory:registerHook('createItem', function(payload)
     local metadata = payload.metadata or {}
@@ -95,9 +135,48 @@ exports('useLaptop', function(event, _, inventory, slot, _)
                 end
             end
 
-            TriggerEvent('fd_laptop:server:useLaptop', inventory.id, item.metadata?.id, devices)
+            local hasPassword = type(item.metadata?.password) == 'string' and item.metadata.password ~= ''
+
+            TriggerEvent('fd_laptop:server:useLaptop', inventory.id, item.metadata?.id, devices, hasPassword)
         end)
 
         return false
     end
+end)
+
+lib.callback.register('fd_laptop:server:saveLaptopPassword', function(source, laptopId, password)
+    local slot, metadata = getLaptopSlotById(source, laptopId)
+
+    if not slot or not metadata then
+        return false, locale('something_went_wrong'), false
+    end
+
+    local normalizedPassword = normalizePassword(password)
+
+    if normalizedPassword and #normalizedPassword < MIN_PASSWORD_LENGTH then
+        local hasPassword = type(metadata.password) == 'string' and metadata.password ~= ''
+
+        return false, locale('laptop_password_too_short'), hasPassword
+    end
+
+    metadata.password = normalizedPassword
+    ox_inventory:SetMetadata(source, slot, metadata)
+
+    return true, nil, normalizedPassword ~= nil
+end)
+
+lib.callback.register('fd_laptop:server:validateLaptopPassword', function(source, laptopId, password)
+    local _, metadata = getLaptopSlotById(source, laptopId)
+
+    if not metadata then
+        return false
+    end
+
+    local savedPassword = metadata.password
+
+    if type(savedPassword) ~= 'string' or savedPassword == '' then
+        return true
+    end
+
+    return type(password) == 'string' and savedPassword == password
 end)
